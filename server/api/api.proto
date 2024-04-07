@@ -1,0 +1,17 @@
+syntax = "proto3";
+option go_package="composer/pdfcompose;pdfcompose";
+package pdfcompose;
+
+service PdfComposeService {
+  rpc Send (FormData) returns (File) {}
+}
+
+message FormData {
+  bytes upfile1 = 1;
+  optional bytes upfile2 = 2;
+  optional bytes upfile3 = 3;
+}
+
+message File {
+  bytes file = 1;
+}
