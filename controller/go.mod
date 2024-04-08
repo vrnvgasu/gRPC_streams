@@ -7,4 +7,6 @@ require (
 	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/runtime v0.28.0
 	github.com/go-openapi/strfmt v0.23.0
+	google.golang.org/grpc v1.63.0
+	google.golang.org/protobuf v1.33.0
 )

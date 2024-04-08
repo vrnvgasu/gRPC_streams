@@ -1,16 +1,17 @@
 package handlers
 
 import (
-	apiclient "controller-service/client"
-	"controller-service/client/operations"
+	"context"
+	"controller-service/pkg/composer/pdfcompose"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"time"
 
-	"github.com/go-openapi/runtime"
-	httptransport "github.com/go-openapi/runtime/client"
-	"github.com/go-openapi/strfmt"
+	"google.golang.org/grpc"
 )
 
 type Handler struct {
@@ -18,29 +19,53 @@ type Handler struct {
 }
 
 func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
-	transport := httptransport.New(apiclient.DefaultHost+":8090", apiclient.DefaultBasePath, []string{"http"})
-	transport.Consumers["application/pdf"] = runtime.ByteStreamConsumer()
-	client := apiclient.New(transport, strfmt.Default)
-
-	file, _, err := r.FormFile("upfile1")
+	cwt, _ := context.WithTimeout(context.Background(), time.Second*5)
+	conn, err := grpc.DialContext(cwt, "pdf-compose-service:50051", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		return
+		panic(err)
+	}
+	defer conn.Close()
+
+	uc := pdfcompose.NewPdfComposeServiceClient(conn)
+
+	files := &pdfcompose.FormData{
+		Upfile1: h.getFile(r, "upfile1"),
+	}
+
+	if bytes := h.getFile(r, "upfile2"); bytes != nil {
+		files.Upfile2 = bytes
+	}
+	if bytes := h.getFile(r, "upfile3"); bytes != nil {
+		files.Upfile3 = bytes
+	}
+
+	resp, err := uc.Send(cwt, files)
+	if err != nil {
+		panic(err)
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=result.pdf")
+	w.Write(resp.GetFile())
+
+	return
+}
+
+func (h *Handler) getFile(r *http.Request, param string) []byte {
+	file, _, err := r.FormFile(param)
+	if err != nil {
+		if errors.Is(err, http.ErrMissingFile) {
+			return nil
+		}
+		log.Fatal(err)
 	}
 	defer file.Close()
 
-	postSendParams := operations.NewPostSendParams()
-	postSendParams.Upfile1 = runtime.NamedReader("upfile1", file)
-
-	resp, err := client.Operations.PostSend(postSendParams, w)
+	bytes, err := io.ReadAll(file)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	payload := resp.GetPayload()
-	_ = payload
-
-	w.Write([]byte("OK"))
-	return
+	return bytes
 }
 
 func (h *Handler) Web(w http.ResponseWriter, r *http.Request) {

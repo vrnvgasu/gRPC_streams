@@ -4,7 +4,7 @@ services:
     build:
       context: server
     ports:
-        - "8090:8090"
+        - "50051:50051"
   controller-service:
     build:
       context: controller
