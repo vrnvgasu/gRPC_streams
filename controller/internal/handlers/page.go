@@ -21,6 +21,7 @@ type Handler struct {
 func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
 	cwt, _ := context.WithTimeout(context.Background(), time.Second*5)
 	conn, err := grpc.DialContext(cwt, "pdf-compose-service:50051", grpc.WithInsecure(), grpc.WithBlock())
+	//conn, err := grpc.DialContext(cwt, "localhost:50051", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		panic(err)
 	}
@@ -39,13 +40,27 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) {
 		files.Upfile3 = bytes
 	}
 
-	resp, err := uc.Send(cwt, files)
+	stream, err := uc.Send(cwt, files)
 	if err != nil {
 		panic(err)
 	}
 
+	result := []byte{}
+	for {
+		chunk, err := stream.Recv() // вынимает порцию данных из стрима
+		if err == io.EOF || chunk == nil {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+
+		bytes := chunk.GetContent()
+		result = append(result, bytes...)
+	}
+
 	w.Header().Set("Content-Disposition", "attachment; filename=result.pdf")
-	w.Write(resp.GetFile())
+	w.Write(result)
 
 	return
 }

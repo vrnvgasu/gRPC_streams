@@ -3,7 +3,11 @@ option go_package="composer/pdfcompose;pdfcompose";
 package pdfcompose;
 
 service PdfComposeService {
-  rpc Send (FormData) returns (File) {}
+  rpc Send (FormData) returns (stream Chunk) {}
+}
+
+message Chunk {
+  bytes Content = 1;
 }
 
 message FormData {

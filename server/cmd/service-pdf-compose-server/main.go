@@ -21,11 +21,49 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	s := grpc.NewServer()
-	server := &handler.PdfComposeServiceClient{}
+	s := grpc.NewServer(grpc.ChainStreamInterceptor(metricInterceptor))
+	server := &handler.PdfComposeServiceServer{}
 	pdfcompose.RegisterPdfComposeServiceServer(s, server)
 	if err := s.Serve(lis); err != nil {
 		panic(err)
 	}
 
+}
+
+func metricInterceptor(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, streamHandler grpc.StreamHandler) error {
+	fmt.Println("Log Interceptor")
+
+	wrapper := &recvWrapper{stream}
+
+	err := streamHandler(srv, wrapper)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type recvWrapper struct {
+	grpc.ServerStream
+}
+
+func (s *recvWrapper) RecvMsg(m interface{}) error {
+	if err := s.ServerStream.RecvMsg(m); err != nil {
+		return err
+	}
+
+	params, ok := m.(*pdfcompose.FormData)
+	if ok {
+		size := len(params.Upfile1)
+
+		if params.Upfile2 != nil {
+			size += len(params.Upfile2)
+		}
+		if params.Upfile3 != nil {
+			size += len(params.Upfile3)
+		}
+
+		fmt.Printf("files size: %d\n", size)
+	}
+
+	return nil
 }

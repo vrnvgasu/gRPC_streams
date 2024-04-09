@@ -26,7 +26,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PdfComposeServiceClient interface {
-	Send(ctx context.Context, in *FormData, opts ...grpc.CallOption) (*File, error)
+	Send(ctx context.Context, in *FormData, opts ...grpc.CallOption) (PdfComposeService_SendClient, error)
 }
 
 type pdfComposeServiceClient struct {
@@ -37,20 +37,43 @@ func NewPdfComposeServiceClient(cc grpc.ClientConnInterface) PdfComposeServiceCl
 	return &pdfComposeServiceClient{cc}
 }
 
-func (c *pdfComposeServiceClient) Send(ctx context.Context, in *FormData, opts ...grpc.CallOption) (*File, error) {
-	out := new(File)
-	err := c.cc.Invoke(ctx, PdfComposeService_Send_FullMethodName, in, out, opts...)
+func (c *pdfComposeServiceClient) Send(ctx context.Context, in *FormData, opts ...grpc.CallOption) (PdfComposeService_SendClient, error) {
+	stream, err := c.cc.NewStream(ctx, &PdfComposeService_ServiceDesc.Streams[0], PdfComposeService_Send_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &pdfComposeServiceSendClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type PdfComposeService_SendClient interface {
+	Recv() (*Chunk, error)
+	grpc.ClientStream
+}
+
+type pdfComposeServiceSendClient struct {
+	grpc.ClientStream
+}
+
+func (x *pdfComposeServiceSendClient) Recv() (*Chunk, error) {
+	m := new(Chunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // PdfComposeServiceServer is the server API for PdfComposeService service.
 // All implementations must embed UnimplementedPdfComposeServiceServer
 // for forward compatibility
 type PdfComposeServiceServer interface {
-	Send(context.Context, *FormData) (*File, error)
+	Send(*FormData, PdfComposeService_SendServer) error
 	mustEmbedUnimplementedPdfComposeServiceServer()
 }
 
@@ -58,8 +81,8 @@ type PdfComposeServiceServer interface {
 type UnimplementedPdfComposeServiceServer struct {
 }
 
-func (UnimplementedPdfComposeServiceServer) Send(context.Context, *FormData) (*File, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Send not implemented")
+func (UnimplementedPdfComposeServiceServer) Send(*FormData, PdfComposeService_SendServer) error {
+	return status.Errorf(codes.Unimplemented, "method Send not implemented")
 }
 func (UnimplementedPdfComposeServiceServer) mustEmbedUnimplementedPdfComposeServiceServer() {}
 
@@ -74,22 +97,25 @@ func RegisterPdfComposeServiceServer(s grpc.ServiceRegistrar, srv PdfComposeServ
 	s.RegisterService(&PdfComposeService_ServiceDesc, srv)
 }
 
-func _PdfComposeService_Send_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FormData)
-	if err := dec(in); err != nil {
-		return nil, err
+func _PdfComposeService_Send_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FormData)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(PdfComposeServiceServer).Send(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PdfComposeService_Send_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PdfComposeServiceServer).Send(ctx, req.(*FormData))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(PdfComposeServiceServer).Send(m, &pdfComposeServiceSendServer{stream})
+}
+
+type PdfComposeService_SendServer interface {
+	Send(*Chunk) error
+	grpc.ServerStream
+}
+
+type pdfComposeServiceSendServer struct {
+	grpc.ServerStream
+}
+
+func (x *pdfComposeServiceSendServer) Send(m *Chunk) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // PdfComposeService_ServiceDesc is the grpc.ServiceDesc for PdfComposeService service.
@@ -98,12 +124,13 @@ func _PdfComposeService_Send_Handler(srv interface{}, ctx context.Context, dec f
 var PdfComposeService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "pdfcompose.PdfComposeService",
 	HandlerType: (*PdfComposeServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "Send",
-			Handler:    _PdfComposeService_Send_Handler,
+			StreamName:    "Send",
+			Handler:       _PdfComposeService_Send_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "server/api/api.proto",
 }

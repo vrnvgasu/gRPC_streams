@@ -1,18 +1,18 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
-	"context"
 	"io"
 	"service-pdf-compose/pkg/composer"
 	"service-pdf-compose/pkg/composer/pdfcompose"
 )
 
-type PdfComposeServiceClient struct {
+type PdfComposeServiceServer struct {
 	pdfcompose.UnimplementedPdfComposeServiceServer
 }
 
-func (p *PdfComposeServiceClient) Send(ctx context.Context, params *pdfcompose.FormData) (*pdfcompose.File, error) {
+func (c *PdfComposeServiceServer) Send(params *pdfcompose.FormData, stream pdfcompose.PdfComposeService_SendServer) error {
 	files := []io.ReadCloser{io.NopCloser(bytes.NewReader(params.Upfile1))}
 	if params.Upfile2 != nil {
 		files = append(files, io.NopCloser(bytes.NewReader(params.Upfile2)))
@@ -23,13 +23,19 @@ func (p *PdfComposeServiceClient) Send(ctx context.Context, params *pdfcompose.F
 
 	result, err := composer.ComposeFromFiles(files)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	body, err := io.ReadAll(result)
-	if err != nil {
-		return nil, err
-	}
+	r := bufio.NewReader(result)
+	b := make([]byte, 3)
+	for {
+		n, err := r.Read(b)
+		if err != nil {
+			return err
+		}
 
-	return &pdfcompose.File{File: body}, nil
+		if err := stream.Send(&pdfcompose.Chunk{Content: b[0:n]}); err != nil {
+			return err
+		}
+	}
 }
